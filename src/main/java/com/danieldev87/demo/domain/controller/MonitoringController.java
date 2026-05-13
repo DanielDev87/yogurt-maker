@@ -18,13 +18,22 @@ import com.danieldev87.demo.domain.model.YogurtBatch;
 import com.danieldev87.demo.domain.repository.TemperatureLogRepository;
 import com.danieldev87.demo.domain.repository.YogurtBatchRepository;
 import com.danieldev87.demo.domain.service.TemperatureControlService;
+import com.danieldev87.demo.dto.ApiErrorResponse;
 import com.danieldev87.demo.dto.MonitoringDTO;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/monitoring")
 @RequiredArgsConstructor
+@Tag(name = "Monitoring", description = "Endpoints for operational visibility, temperature tracking and dashboard metrics")
 public class MonitoringController {
     
     private final YogurtBatchRepository batchRepository;
@@ -32,6 +41,11 @@ public class MonitoringController {
     private final TemperatureControlService temperatureControlService;
     
     @GetMapping("/batches/active")
+    @Operation(summary = "List active batches", description = "Returns batches that are currently in an in-progress production phase and require monitoring.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Active batches retrieved successfully", content = @Content(array = @ArraySchema(schema = @Schema(implementation = YogurtBatch.class)))),
+        @ApiResponse(responseCode = "400", description = "Unable to compute active batches", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<List<YogurtBatch>> getActiveBatches() {
         List<YogurtBatch> activeBatches = batchRepository.findByStatus(YogurtBatch.BatchStatus.INCUBATING);
         activeBatches.addAll(batchRepository.findByStatus(YogurtBatch.BatchStatus.HEATING));
@@ -41,6 +55,11 @@ public class MonitoringController {
     }
     
     @GetMapping("/batches/{batchId}/temperature")
+    @Operation(summary = "Get batch temperature summary", description = "Returns current, minimum, maximum and average temperatures recorded for a batch.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Temperature summary retrieved successfully", content = @Content(schema = @Schema(implementation = MonitoringDTO.TemperatureSummary.class))),
+        @ApiResponse(responseCode = "404", description = "Batch not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<MonitoringDTO.TemperatureSummary> getBatchTemperatureSummary(@PathVariable Long batchId) {
         Double currentTemp = temperatureControlService.getCurrentTemperature(batchId);
         Double maxTemp = temperatureLogRepository.getMaxTemperatureByBatch(batchId);
@@ -59,6 +78,11 @@ public class MonitoringController {
     }
     
     @GetMapping("/batches/{batchId}/temperature-logs")
+    @Operation(summary = "Get temperature logs", description = "Returns all recorded temperatures for a batch, optionally filtered by a start and end date-time range.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Temperature logs retrieved successfully", content = @Content(array = @ArraySchema(schema = @Schema(implementation = TemperatureLog.class)))),
+        @ApiResponse(responseCode = "404", description = "Batch not found", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<List<TemperatureLog>> getTemperatureLogs(
             @PathVariable Long batchId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
@@ -73,6 +97,11 @@ public class MonitoringController {
     }
     
     @GetMapping("/dashboard")
+    @Operation(summary = "Get dashboard metrics", description = "Returns aggregate operational metrics for yogurt batches grouped by status and completion activity.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Dashboard metrics retrieved successfully", content = @Content(schema = @Schema(implementation = MonitoringDTO.Dashboard.class))),
+        @ApiResponse(responseCode = "400", description = "Unable to build dashboard metrics", content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
     public ResponseEntity<MonitoringDTO.Dashboard> getDashboard() {
         long preparingCount = batchRepository.countByStatus(YogurtBatch.BatchStatus.PREPARING);
         long heatingCount = batchRepository.countByStatus(YogurtBatch.BatchStatus.HEATING);
